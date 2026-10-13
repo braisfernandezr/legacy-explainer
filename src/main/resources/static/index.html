@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Legacy Code Explainer</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #181b24;
+    --panel-border: #262b38;
+    --text: #e6e8ee;
+    --muted: #8b91a3;
+    --accent: #5b8cff;
+    --accent-hover: #729cff;
+    --error: #ff6b6b;
+    --mono: "Cascadia Code", "Consolas", "Courier New", monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    padding: 1.5rem 2rem 1rem;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  header h1 { font-size: 1.35rem; font-weight: 600; }
+  header h1 span { color: var(--accent); }
+  header p { color: var(--muted); font-size: 0.9rem; margin-top: 0.25rem; }
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    padding: 1.25rem 2rem 2rem;
+    max-width: 1400px;
+    width: 100%;
+    margin: 0 auto;
+  }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 420px;
+  }
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid var(--panel-border);
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .panel-header .controls { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+  select {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.85rem;
+  }
+  .fetch-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1rem;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  .fetch-row input {
+    flex: 1;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.82rem;
+    outline: none;
+  }
+  .fetch-row input:focus { border-color: var(--accent); }
+  .fetch-row button {
+    padding: 0.4rem 0.9rem;
+    font-size: 0.82rem;
+  }
+  .fetch-note { color: var(--muted); font-size: 0.78rem; white-space: nowrap; }
+  .fetch-note.error { color: var(--error); }
+  .file-btn {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--panel-border);
+    font-weight: 500;
+  }
+  .file-btn:hover:not(:disabled) { background: var(--bg); border-color: var(--accent); }
+  .panel-header button {
+    padding: 0.3rem 0.8rem;
+    font-size: 0.78rem;
+    font-weight: 500;
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--panel-border);
+  }
+  .panel-header button:hover:not(:disabled) { background: var(--bg); border-color: var(--accent); }
+  #stopBtn { color: var(--error); }
+  #stopBtn:hover:not(:disabled) { border-color: var(--error); background: var(--bg); }
+  .panel.dragover { border-color: var(--accent); }
+  .panel.dragover textarea { opacity: 0.5; }
+  textarea {
+    flex: 1;
+    background: transparent;
+    color: var(--text);
+    border: none;
+    resize: none;
+    padding: 1rem;
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    outline: none;
+  }
+  .panel-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.7rem 1rem;
+    border-top: 1px solid var(--panel-border);
+  }
+  .char-count { color: var(--muted); font-size: 0.8rem; }
+  .char-count.over { color: var(--error); }
+  button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 0.55rem 1.4rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  button:hover:not(:disabled) { background: var(--accent-hover); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  #status {
+    display: none;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1rem;
+    border-bottom: 1px solid var(--panel-border);
+    color: var(--accent);
+    font-size: 0.82rem;
+  }
+  #status.visible { display: flex; }
+  #result {
+    flex: 1;
+    padding: 1rem;
+    overflow-y: auto;
+    font-size: 0.92rem;
+    line-height: 1.65;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  #result .placeholder { color: var(--muted); }
+  #result.error { color: var(--error); }
+  #result .cursor {
+    display: inline-block;
+    width: 8px;
+    height: 1em;
+    background: var(--accent);
+    vertical-align: -2px;
+    margin-left: 2px;
+    animation: blink 1s steps(1) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  .meta {
+    padding: 0.6rem 1rem;
+    border-top: 1px solid var(--panel-border);
+    color: var(--muted);
+    font-size: 0.8rem;
+    display: none;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .meta.visible { display: flex; }
+  .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(91,140,255,0.3);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex: none;
+  }
+  button .spinner {
+    border-color: rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    width: 16px;
+    height: 16px;
+    vertical-align: -3px;
+    margin-right: 0.5rem;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Legacy Code <span>Explainer</span></h1>
+  <p>Paste undocumented legacy code (COBOL, old Java, Fortran…) and get a natural-language explanation, streamed live from a local LLM. Large files are split and analyzed part by part.</p>
+</header>
+
+<main>
+  <section class="panel" id="sourcePanel">
+    <div class="panel-header">
+      <span>Source code</span>
+      <div class="controls">
+        <label for="mode">Mode</label>
+        <select id="mode">
+          <option value="explain" selected>Explain</option>
+          <option value="summarize">Summarize</option>
+          <option value="bugs">Find bugs</option>
+          <option value="refactor">Refactor ideas</option>
+          <option value="diff">Explain diff</option>
+        </select>
+        <label for="language">Language</label>
+        <select id="language">
+          <option value="auto" selected>Auto-detect</option>
+          <option>COBOL</option>
+          <option>Java</option>
+          <option>C</option>
+          <option>C++</option>
+          <option>Fortran</option>
+          <option>Pascal</option>
+          <option>PL/SQL</option>
+          <option>RPG</option>
+          <option>BASIC</option>
+          <option>Assembly</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="fetch-row">
+      <button id="fileBtn" class="file-btn" title="Load a source file from your computer">Open file…</button>
+      <input id="fileInput" type="file" hidden>
+      <input id="ghUrl" type="text" spellcheck="false"
+             placeholder="…or paste a GitHub file / gist URL and press Fetch">
+      <span class="fetch-note" id="fetchNote"></span>
+      <button id="fetchBtn">Fetch</button>
+    </div>
+    <textarea id="code" spellcheck="false" placeholder="Paste your legacy code here, or drop a file…"></textarea>
+    <div class="panel-footer">
+      <span class="char-count" id="charCount">0 / 60,000</span>
+      <button id="explainBtn">Explain</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <span>Explanation</span>
+      <div class="controls">
+        <button id="stopBtn" hidden title="Stop the generation">Stop</button>
+        <button id="copyBtn" disabled title="Copy the explanation to the clipboard">Copy</button>
+      </div>
+    </div>
+    <div id="status"><span class="spinner"></span><span id="statusText"></span></div>
+    <div id="result"><span class="placeholder">The explanation will appear here.</span></div>
+    <div class="meta" id="meta">
+      <span id="metaLanguage"></span>
+      <span id="metaModel"></span>
+      <span id="metaParts"></span>
+      <span id="metaDuration"></span>
+    </div>
+  </section>
+</main>
+
+<script>
+  const MAX_CHARS = 60000;
+  const codeEl = document.getElementById("code");
+  const langEl = document.getElementById("language");
+  const modeEl = document.getElementById("mode");
+  const btn = document.getElementById("explainBtn");
+  const resultEl = document.getElementById("result");
+  const statusEl = document.getElementById("status");
+  const statusTextEl = document.getElementById("statusText");
+  const charCountEl = document.getElementById("charCount");
+  const metaEl = document.getElementById("meta");
+
+  const ghUrlEl = document.getElementById("ghUrl");
+  const fetchBtn = document.getElementById("fetchBtn");
+  const fetchNoteEl = document.getElementById("fetchNote");
+
+  codeEl.addEventListener("input", updateCharCount);
+
+  // Pasting or loading a unified diff auto-selects diff mode (the user can switch back).
+  function maybeSelectDiffMode(fileName) {
+    if (modeEl.value !== "explain") return;
+    if ((fileName && /\.(diff|patch)$/i.test(fileName)) || /^(diff --git|--- |\+\+\+ |@@ )/m.test(codeEl.value)) {
+      modeEl.value = "diff";
+    }
+  }
+  codeEl.addEventListener("paste", () => setTimeout(() => maybeSelectDiffMode(null), 0));
+
+  function updateCharCount() {
+    const len = codeEl.value.length;
+    charCountEl.textContent = `${len.toLocaleString()} / ${MAX_CHARS.toLocaleString()}`;
+    charCountEl.classList.toggle("over", len > MAX_CHARS);
+  }
+
+  fetchBtn.addEventListener("click", fetchSource);
+  ghUrlEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") fetchSource();
+  });
+
+  async function fetchSource() {
+    const url = ghUrlEl.value.trim();
+    if (!url) return;
+    fetchBtn.disabled = true;
+    setFetchNote("Fetching…", false);
+    try {
+      const response = await fetch(`/api/fetch-source?url=${encodeURIComponent(url)}`);
+      const body = await response.json();
+      if (!response.ok) {
+        setFetchNote(body.error || `Fetch failed (${response.status}).`, true);
+        return;
+      }
+      codeEl.value = body.code;
+      updateCharCount();
+      setFetchNote(`${body.fileName} — ${body.code.length.toLocaleString()} chars${body.truncated ? " (truncated)" : ""}`, false);
+    } catch (err) {
+      setFetchNote("Could not reach the server.", true);
+    } finally {
+      fetchBtn.disabled = false;
+    }
+  }
+
+  function setFetchNote(message, isError) {
+    fetchNoteEl.textContent = message;
+    fetchNoteEl.classList.toggle("error", isError);
+  }
+
+  // --- Local file upload (button + drag-and-drop) -------------------------
+
+  const MAX_FILE_BYTES = 2 * 1024 * 1024;
+  const fileBtn = document.getElementById("fileBtn");
+  const fileInput = document.getElementById("fileInput");
+  const sourcePanel = document.getElementById("sourcePanel");
+
+  fileBtn.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => {
+    if (fileInput.files[0]) loadFile(fileInput.files[0]);
+    fileInput.value = ""; // allow re-selecting the same file
+  });
+
+  ["dragenter", "dragover"].forEach((type) =>
+    sourcePanel.addEventListener(type, (e) => {
+      e.preventDefault();
+      sourcePanel.classList.add("dragover");
+    })
+  );
+  sourcePanel.addEventListener("dragleave", (e) => {
+    if (!sourcePanel.contains(e.relatedTarget)) sourcePanel.classList.remove("dragover");
+  });
+  sourcePanel.addEventListener("drop", (e) => {
+    e.preventDefault();
+    sourcePanel.classList.remove("dragover");
+    if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+
+  async function loadFile(file) {
+    if (file.size > MAX_FILE_BYTES) {
+      setFetchNote(`${file.name} is too large (max 2 MB).`, true);
+      return;
+    }
+    let text;
+    try {
+      text = await file.text();
+    } catch (err) {
+      setFetchNote(`Could not read ${file.name}.`, true);
+      return;
+    }
+    if (text.includes("\u0000")) {
+      setFetchNote(`${file.name} looks like a binary file.`, true);
+      return;
+    }
+    const truncated = text.length > MAX_CHARS;
+    codeEl.value = truncated ? text.slice(0, MAX_CHARS) : text;
+    updateCharCount();
+    setFetchNote(`${file.name} — ${codeEl.value.length.toLocaleString()} chars${truncated ? " (truncated)" : ""}`, false);
+    maybeSelectDiffMode(file.name);
+  }
+
+  btn.addEventListener("click", explain);
+  codeEl.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") explain();
+  });
+
+  let streaming = false;
+  let abortController = null;
+  let explanationText = "";
+
+  const stopBtn = document.getElementById("stopBtn");
+  const copyBtn = document.getElementById("copyBtn");
+
+  stopBtn.addEventListener("click", () => {
+    if (abortController) abortController.abort();
+  });
+
+  copyBtn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(explanationText);
+      copyBtn.textContent = "Copied!";
+    } catch (err) {
+      copyBtn.textContent = "Copy failed";
+    }
+    setTimeout(() => { copyBtn.textContent = "Copy"; }, 1500);
+  });
+
+  async function explain() {
+    if (streaming) return;
+    const code = codeEl.value;
+    if (!code.trim()) {
+      showError("Paste some code first.");
+      return;
+    }
+    if (code.length > MAX_CHARS) {
+      showError(`Code is too long (max ${MAX_CHARS.toLocaleString()} characters).`);
+      return;
+    }
+
+    streaming = true;
+    abortController = new AbortController();
+    explanationText = "";
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Explaining…';
+    stopBtn.hidden = false;
+    copyBtn.disabled = true;
+    resultEl.classList.remove("error");
+    resultEl.innerHTML = '<span class="placeholder">Waiting for the model — the first tokens can take a while on CPU…</span>';
+    metaEl.classList.remove("visible");
+    setStatus(code.length > 7000 ? "Preparing…" : "Generating…");
+
+    try {
+      const response = await fetch("/api/explain/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "text/event-stream" },
+        body: JSON.stringify({
+          code,
+          language: langEl.value === "other" ? null : langEl.value,
+          mode: modeEl.value
+        }),
+        signal: abortController.signal
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        showError(body.error || `Request failed (${response.status}).`);
+        return;
+      }
+
+      await readSseStream(response.body);
+    } catch (err) {
+      if (err.name === "AbortError") {
+        showStopped();
+      } else {
+        showError("Could not reach the server. Is the app running?");
+      }
+    } finally {
+      streaming = false;
+      abortController = null;
+      btn.disabled = false;
+      btn.textContent = "Explain";
+      stopBtn.hidden = true;
+      copyBtn.disabled = explanationText === "";
+      setStatus(null);
+      removeCursor();
+    }
+  }
+
+  function showStopped() {
+    removeCursor();
+    if (explanationText === "") {
+      resultEl.innerHTML = '<span class="placeholder">Stopped before the model produced any output.</span>';
+    } else {
+      const note = document.createElement("span");
+      note.className = "placeholder";
+      note.textContent = "\n\n⏹ Stopped — the explanation above is incomplete.";
+      resultEl.appendChild(note);
+    }
+  }
+
+  async function readSseStream(body) {
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let gotTerminalEvent = false;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let sep;
+      while ((sep = buffer.indexOf("\n\n")) !== -1) {
+        const rawEvent = buffer.slice(0, sep);
+        buffer = buffer.slice(sep + 2);
+        gotTerminalEvent = handleSseEvent(parseSseEvent(rawEvent)) || gotTerminalEvent;
+      }
+    }
+    if (!gotTerminalEvent) {
+      showError("The connection was interrupted before the explanation finished.");
+    }
+  }
+
+  function parseSseEvent(raw) {
+    let event = "message";
+    const dataLines = [];
+    for (const line of raw.split("\n")) {
+      if (line.startsWith("event:")) event = line.slice(6).trim();
+      else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
+    }
+    let data = {};
+    try { data = JSON.parse(dataLines.join("\n")); } catch (e) { /* keep-alives etc. */ }
+    return { event, data };
+  }
+
+  // Returns true for terminal events (done/error).
+  function handleSseEvent({ event, data }) {
+    if (event === "status") {
+      setStatus(data.message);
+      return false;
+    }
+    if (event === "token") {
+      appendToken(data.text || "");
+      return false;
+    }
+    if (event === "done") {
+      removeCursor();
+      explanationText = data.explanation;
+      resultEl.textContent = data.explanation;
+      document.getElementById("metaLanguage").textContent = `Language: ${data.detectedLanguage}`;
+      document.getElementById("metaModel").textContent = `Model: ${data.model}`;
+      document.getElementById("metaParts").textContent = data.parts > 1 ? `Analyzed in ${data.parts} parts` : "";
+      document.getElementById("metaDuration").textContent = `Took: ${formatDuration(data.durationMs)}`;
+      metaEl.classList.add("visible");
+      return true;
+    }
+    if (event === "error") {
+      showError(data.error || "Something went wrong.");
+      return true;
+    }
+    return false;
+  }
+
+  let textNode = null;
+
+  function appendToken(text) {
+    if (!textNode) {
+      resultEl.innerHTML = "";
+      textNode = document.createTextNode("");
+      resultEl.appendChild(textNode);
+      const cursor = document.createElement("span");
+      cursor.className = "cursor";
+      resultEl.appendChild(cursor);
+      setStatus(null);
+    }
+    textNode.data += text;
+    explanationText += text;
+    resultEl.scrollTop = resultEl.scrollHeight;
+  }
+
+  function removeCursor() {
+    const cursor = resultEl.querySelector(".cursor");
+    if (cursor) cursor.remove();
+    textNode = null;
+  }
+
+  function setStatus(message) {
+    statusEl.classList.toggle("visible", !!message);
+    statusTextEl.textContent = message || "";
+  }
+
+  function showError(message) {
+    removeCursor();
+    explanationText = "";
+    resultEl.classList.add("error");
+    resultEl.textContent = message;
+    metaEl.classList.remove("visible");
+    setStatus(null);
+  }
+
+  function formatDuration(ms) {
+    return ms < 1000 ? `${ms} ms` : ms < 60000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.floor(ms / 60000)} min ${Math.round((ms % 60000) / 1000)} s`;
+  }
+</script>
+</body>
+</html>

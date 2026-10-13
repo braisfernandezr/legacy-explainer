@@ -1,0 +1,42 @@
+# One-command demo: app + Ollama + model.
+#
+#   docker compose up --build
+#
+# The first run downloads the Ollama image and pulls the model (~1 GB)
+# into a named volume; later runs reuse both. App: http://localhost:8080
+services:
+
+  ollama:
+    image: ollama/ollama
+    volumes:
+      - ollama-models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+
+  # One-shot job: make sure the model is present before the app starts.
+  model-pull:
+    image: ollama/ollama
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    entrypoint: ["ollama", "pull", "qwen2.5-coder:1.5b"]
+    restart: "no"
+
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      # Spring relaxed binding: APP_OLLAMA_BASEURL -> app.ollama.base-url
+      - APP_OLLAMA_BASEURL=http://ollama:11434
+    depends_on:
+      model-pull:
+        condition: service_completed_successfully
+
+volumes:
+  ollama-models:

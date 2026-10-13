@@ -1,0 +1,72 @@
+{
+  "cases": [
+    {
+      "name": "cobol-payroll",
+      "snippet": "payroll.cbl",
+      "language": "auto",
+      "mode": "explain",
+      "expected": [
+        ["overtime"],
+        ["1.5", "time and a half", "one and a half"],
+        ["tax"],
+        ["net"]
+      ]
+    },
+    {
+      "name": "c-binary-search",
+      "snippet": "binsearch.c",
+      "language": "C",
+      "mode": "explain",
+      "expected": [
+        ["binary search", "halv", "divid"],
+        ["sorted", "ascending", "order"],
+        ["mid", "middle"],
+        ["-1", "not found", "not present"]
+      ]
+    },
+    {
+      "name": "fortran-average",
+      "snippet": "average.f",
+      "language": "Fortran",
+      "mode": "explain",
+      "expected": [
+        ["average", "mean"],
+        ["sum", "total", "adds"],
+        ["read", "input"]
+      ]
+    },
+    {
+      "name": "java-old-stack",
+      "snippet": "IntStack.java",
+      "language": "Java",
+      "mode": "summarize",
+      "expected": [
+        ["stack", "last-in", "lifo"],
+        ["push"],
+        ["pop"],
+        ["vector"]
+      ]
+    },
+    {
+      "name": "c-bug-hunt",
+      "snippet": "divzero.c",
+      "language": "C",
+      "mode": "bugs",
+      "expected": [
+        ["zero", "division"],
+        ["off-by-one", "<=", "out of bounds", "overrun", "beyond", "bounds"]
+      ]
+    },
+    {
+      "name": "c-bugfix-diff",
+      "snippet": "bugfix.diff",
+      "language": "C",
+      "mode": "diff",
+      "expected": [
+        ["zero", "division"],
+        ["guard", "check", "validat", "early return", "returns 0", "return 0"],
+        ["off-by-one", "<=", "bound", "loop condition"]
+      ]
+    }
+  ]
+}
